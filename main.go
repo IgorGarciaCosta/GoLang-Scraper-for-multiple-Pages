@@ -42,5 +42,5 @@ func main() {
 	}
 
 	log.Printf("Scraping Complete\n")
-	log.Panicln(c)
+	log.Println(c)
 }
