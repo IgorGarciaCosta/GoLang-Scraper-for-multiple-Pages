@@ -1,33 +1,23 @@
 package main
 
 import (
-	"encoding/csv"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"log"
-	"os"
+	"strconv"
 
 	"github.com/gocolly/colly"
 )
 
+type Item struct {
+	ID          int    `json:"id"`
+	Description string `json:"description"`
+}
+
 func main() {
-	fName := "ids.csv"
-	fName2 := "texts.csv"
-	file, err := os.Create(fName) //we create a file data.csv
-	file2, err := os.Create(fName2)
 
-	if err != nil {
-		log.Fatalf("Could not create file. err: %q", err)
-		return
-	}
-
-	defer file.Close() //'defer' defers the function "Close" until the oter functions are done
-
-	defer file2.Close()
-
-	writer := csv.NewWriter(file)
-	writer2 := csv.NewWriter(file2)
-
-	defer writer.Flush()
-	defer writer2.Flush()
+	allItems := make([]Item, 0)
 
 	c := colly.NewCollector(
 		colly.AllowedDomains("factretriever.com", "www.factretriever.com"),
@@ -35,24 +25,39 @@ func main() {
 
 	//Point to the web structure and specify what i  need from the page
 	c.OnHTML(".factsList li", func(e *colly.HTMLElement) {
-		writer.Write([]string{
-			e.Attr("id"), //get the text from the tag stan
-		})
+		itemId, err := strconv.Atoi(e.Attr("id"))
+		if err != nil {
+			log.Println("Could not get id")
+		}
+
+		itemText := e.Text
+
+		item := Item{
+			ID:          itemId,
+			Description: itemText,
+		}
+
+		allItems = append(allItems, item)
+
 	})
 
-	c2 := colly.NewCollector(
-		colly.AllowedDomains("factretriever.com", "www.factretriever.com"),
-	)
-	c2.OnHTML(".factsList li", func(el *colly.HTMLElement) {
-		writer2.Write([]string{
-			el.Text, //get the text from the tag stan
-		})
+	c.OnRequest(func(request *colly.Request) {
+		fmt.Println("Visiting: ", request.URL.String())
 	})
 
 	c.Visit("https://www.factretriever.com/rhino-facts")
-	c2.Visit("https://www.factretriever.com/rhino-facts")
 
 	log.Printf("Scraping Complete\n")
 	log.Println(c)
-	log.Println(c2)
+	writeJSON(allItems)
+}
+
+func writeJSON(data []Item) {
+	file, err := json.MarshalIndent(data, "", " ")
+	if err != nil {
+		log.Println("Unable to create JSON")
+		return
+	}
+
+	_ = ioutil.WriteFile("dataInJSON.json", file, 0644)
 }
